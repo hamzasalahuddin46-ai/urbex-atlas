@@ -1,5 +1,5 @@
 /* App-shell cache only: never cache map tiles, SPARQL, Overpass, or other APIs. */
-const CACHE = "vestige-shell-v11";
+const CACHE = "vestige-shell-v12";
 const SHELL = [
   "./",
   "./index.html",

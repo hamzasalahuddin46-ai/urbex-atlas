@@ -1611,53 +1611,201 @@
     try {
       var reply = await completeChat(messages);
       thinking.remove();
-      pushGuide(reply);
+      if (reply && reply.offline) {
+        pushGuide(reply.text);
+      } else {
+        pushGuide(typeof reply === "string" ? reply : (reply && reply.text) || "");
+      }
     } catch (e) {
       console.error(e);
       thinking.remove();
-      pushBubble(
-        "error",
-        "The guide is unavailable right now. Check your connection, try again in a moment, or add your own OpenAI-compatible API key in Settings.",
-        "error"
-      );
+      var off = offlineGuideReply(messages);
+      pushGuide(off.text);
     } finally {
       state.chatBusy = false;
       $("chat-send").disabled = false;
     }
   }
 
+  var OFFLINE_NOTE =
+    "\n\n— Offline guide (the live AI is unavailable). For a smarter chat, add your own API key in Settings.";
+
+  function openaiContent(data) {
+    var c = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    if (typeof c === "string" && c.trim()) return c.trim();
+    if (typeof data === "string" && data.trim() && data.trim()[0] !== "{") return data.trim();
+    return "";
+  }
+
+  function lastUserText(messages) {
+    for (var i = messages.length - 1; i >= 0; i--) {
+      if (messages[i] && messages[i].role === "user") return String(messages[i].content || "");
+    }
+    return "";
+  }
+
+  async function fetchTimed(url, opts, ms) {
+    var wrap = abortableTimeout(ms || 14000);
+    try {
+      var res = await fetch(url, Object.assign({}, opts || {}, { signal: wrap.signal }));
+      return res;
+    } finally {
+      wrap.cancel();
+    }
+  }
+
+  async function completeUserAI(messages, ai) {
+    var root = String(ai.baseUrl).replace(/\/$/, "");
+    if (!/\/chat\/completions$/.test(root)) root += "/chat/completions";
+    var res = await fetchTimed(root, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + ai.apiKey
+      },
+      body: JSON.stringify({
+        model: ai.model || "gpt-4o-mini",
+        messages: messages
+      })
+    }, 18000);
+    if (!res.ok) throw new Error("AI HTTP " + res.status);
+    var content = openaiContent(await res.json());
+    if (!content) throw new Error("empty");
+    return content;
+  }
+
+  /* Keyless: POST OpenAI-compatible Pollinations endpoint. */
+  async function completePollinationsPost(messages) {
+    var res = await fetchTimed("https://text.pollinations.ai/openai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "openai",
+        referrer: (typeof location !== "undefined" && location.origin) || "https://hamzasalahuddin46-ai.github.io",
+        messages: messages
+      })
+    }, 16000);
+    if (res.status === 403) throw new Error("Pollinations Turnstile 403");
+    if (!res.ok) throw new Error("Pollinations POST HTTP " + res.status);
+    var content = openaiContent(await res.json());
+    if (!content) throw new Error("empty");
+    return content;
+  }
+
+  /* Keyless: GET variant (system prompt + last user message in the URL). */
+  async function completePollinationsGet(messages) {
+    var user = lastUserText(messages) || "Give a short urbex safety reminder.";
+    var sysParts = [];
+    messages.forEach(function (m) {
+      if (m.role === "system") sysParts.push(m.content);
+    });
+    var sys = sysParts.join(" ").slice(0, 1200);
+    var url = "https://text.pollinations.ai/" + encodeURIComponent(user.slice(0, 1200)) +
+      "?model=openai&referrer=" + encodeURIComponent((typeof location !== "undefined" && location.origin) || "") +
+      (sys ? "&system=" + encodeURIComponent(sys) : "");
+    var res = await fetchTimed(url, { method: "GET" }, 16000);
+    if (res.status === 403) throw new Error("Pollinations GET Turnstile 403");
+    if (res.status === 402) throw new Error("Pollinations GET rate limit");
+    if (!res.ok) throw new Error("Pollinations GET HTTP " + res.status);
+    var ct = (res.headers.get("content-type") || "");
+    if (/json/i.test(ct)) {
+      var content = openaiContent(await res.json());
+      if (content) return content;
+      throw new Error("empty json");
+    }
+    var text = (await res.text()).trim();
+    if (!text || /^Free limit reached|^error/i.test(text)) throw new Error(text.slice(0, 120) || "empty");
+    return text;
+  }
+
+  function isDisallowedAsk(q) {
+    q = String(q || "").toLowerCase();
+    return /break\s*in|breaking\s*in|bypass(?:ing)? (?:the )?(?:lock|alarm|security|camera|cctv)|pick(?:ing)? (?:a |the )?lock|evade (?:security|guards?|cops|police)|disable (?:the )?(?:alarm|camera|cctv|lock)|how (?:do i|to|can i) (?:trespass|sneak (?:in|into)|get in(?:side|to)?(?: the)?(?: building|site|place|compound)?)|cut(?:ting)? (?:the )?(?:lock|fence|chain)|bolt\s*cutter|avoid (?:the )?(?:cops|police|security|guards?)|forced entry|jimmy(?:ing)? (?:the )?(?:door|lock|window)|crowbar (?:the|a) (?:door|window|gate)/i.test(q);
+  }
+
+  function offlineGuideReply(messages) {
+    var q = lastUserText(messages);
+    var ql = q.toLowerCase();
+    var spot = state.selected;
+    var text;
+
+    if (isDisallowedAsk(q)) {
+      text =
+        "I can’t help with breaking in, bypassing locks or alarms, evading security, or anything else that’s illegal. " +
+        "Those things can get people hurt or arrested. " +
+        "Legal ways to enjoy a place like this: look for a licensed tour or open-house, visit museums and preserved ruins, " +
+        "and photograph from public rights of way. If you have permission from the owner, go with a buddy, tell someone your plans, and stay out of unsafe structures.";
+    } else if (/\b(gear|kit|pack|bring|flashlight|torch|headlamp|boots|respirator|mask|gloves|ppe|equipment|what (should|to) (i )?(wear|take|pack|bring))\b/i.test(ql)) {
+      text =
+        "For a legal, permitted visit, keep the kit simple and safety-first: a reliable headlamp plus a backup light, sturdy boots with good grip, gloves, and a dust mask or respirator if the site may have debris or fibers (many old buildings can have asbestos — don’t disturb dusty materials). " +
+        "Add water, a charged phone, a small first-aid kit, and a reflective layer. " +
+        "A wide-angle lens and a tripod help in dark interiors — but only where you have permission to be. Leave climbing and “entry” tools at home; they’re a safety and legal problem.";
+    } else if (/\b(photo|photograph|camera|lens|tripod|exposure|low[- ]light|iso|aperture|shutter|film|shoot|composition)\b/i.test(ql)) {
+      text =
+        "Low light is the usual challenge. A fast wide-angle (something in the 16–24 mm range on full frame, or equivalent) and a tripod let you keep ISO under control and capture the whole room. " +
+        "Expose for the highlights coming through broken windows, then lift shadows later; a single long exposure often looks more natural than a stack of harsh flashes. " +
+        "Shoot from public rights of way or with permission — never damage a site for a picture. A cloth and a spare battery go a long way in damp buildings.";
+    } else if (/\b(safe|safety|legal|law|trespass|permission|owner|asbestos|danger|risk|injur|hazard|allowed|permit|private property)\b/i.test(ql)) {
+      text =
+        SAFETY_TEXT +
+        " In short: if you don’t have permission, look from the public street, or find a tour. Rotten floors, open shafts, and bad air are common. A buddy and a check-in time are not optional.";
+    } else if (/\b(how (do i|to) use|this app|vestige|search|favorit|satellite|near me|locate|map layer|home screen|tab bar|continent)\b/i.test(ql)) {
+      text =
+        "In Vestige, type a city, state, or country in the search bar, or pick a continent. “Near me” searches around your current location; the locate button on the map just shows (and can follow) your blue dot, without starting a new search. " +
+        "Tap a pin or a row for details, directions, and research links. Save places with the star — they’re stored only on this device. " +
+        "The layers control switches street, satellite, and dark maps. On an iPhone, use Share → Add to Home Screen so Vestige opens like an app.";
+    } else if (spot && /\b(histor|histor(?:y|ic)|built|when|story|about (this|the|it)|what is (this|it)|descri|this (place|site|building|spot)|selected|year|abandon)\b/i.test(ql)) {
+      var bits = [];
+      bits.push("You’re looking at “" + spot.name + "”" + (spot.typeLabel ? " (" + spot.typeLabel + ")" : "") + ".");
+      if (spot.yearBuilt || spot.yearAbandoned) {
+        bits.push(
+          (spot.yearBuilt ? "Records point to it being built around " + spot.yearBuilt + ". " : "") +
+          (spot.yearAbandoned ? "It appears to have been abandoned around " + spot.yearAbandoned + ". " : "")
+        );
+      }
+      if (spot.description) bits.push(spot.description);
+      else bits.push("I only have what’s in the open-data record here — there’s no longer description on file in this offline guide.");
+      bits.push("Treat that as a starting point, not a complete history; Wikipedia or Wikidata (linked on the place card) is the next stop. And it’s not permission to enter.");
+      if (spot.wiki) bits.push("There’s a Wikipedia link on the place card.");
+      text = bits.join(" ");
+    } else if (spot && /\b(this|here|there|the (place|site|building|spot))\b/i.test(ql)) {
+      text =
+        "The selected place is “" + spot.name + "”" + (spot.typeLabel ? ", listed as " + spot.typeLabel : "") + ". " +
+        (spot.description ? spot.description + " " : "There’s no longer write-up in the open-data record. ") +
+        "I can talk about gear, photography, safety, or the history in that record. I won’t help with getting in. " +
+        "The place card has directions and research links.";
+    } else {
+      text =
+        "I’m the Urbex Guide. I can help with gear, photography, staying safe and legal, how to use Vestige, " +
+        (spot ? "or the open-data history of “" + spot.name + "”." : "or the history of a place once you select one on the map.") +
+        " I only support legal, permitted visits — I won’t help anyone break in or evade security. What would you like to know?";
+    }
+    return { text: text + OFFLINE_NOTE, offline: true };
+  }
+
   async function completeChat(messages) {
     var ai = loadAI();
     if (ai.baseUrl && ai.apiKey) {
-      var root = String(ai.baseUrl).replace(/\/$/, "");
-      if (!/\/chat\/completions$/.test(root)) root += "/chat/completions";
-      var res = await fetch(root, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + ai.apiKey
-        },
-        body: JSON.stringify({
-          model: ai.model || "gpt-4o-mini",
-          messages: messages
-        })
-      });
-      if (!res.ok) throw new Error("AI HTTP " + res.status);
-      var data = await res.json();
-      var content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-      if (!content) throw new Error("empty");
-      return content;
+      try {
+        var owned = await completeUserAI(messages, ai);
+        if (owned) return { text: owned, offline: false, via: "user" };
+      } catch (e) {
+        console.warn("User-configured AI failed, trying keyless providers.", e);
+      }
     }
-    var res2 = await fetch("https://text.pollinations.ai/openai", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "openai", messages: messages })
-    });
-    if (!res2.ok) throw new Error("Pollinations HTTP " + res2.status);
-    var data2 = await res2.json();
-    var content2 = data2.choices && data2.choices[0] && data2.choices[0].message && data2.choices[0].message.content;
-    if (!content2) throw new Error("empty");
-    return content2;
+    var keyless = [
+      { name: "pollinations-post", run: completePollinationsPost },
+      { name: "pollinations-get", run: completePollinationsGet }
+    ];
+    for (var i = 0; i < keyless.length; i++) {
+      try {
+        var t = await keyless[i].run(messages);
+        if (t) return { text: t, offline: false, via: keyless[i].name };
+      } catch (e) {
+        console.warn(keyless[i].name + " failed:", e && (e.message || e));
+      }
+    }
+    return offlineGuideReply(messages);
   }
 
   function autoGrow(el) {
