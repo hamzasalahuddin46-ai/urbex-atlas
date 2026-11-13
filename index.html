@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0a0b">
+  <meta name="color-scheme" content="dark">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Vestige">
+  <meta name="description" content="Discover abandoned and historic places from open data, anywhere in the world.">
+  <title>Vestige — Urbex Atlas</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <a class="skip-link" href="#search-input">Skip to search</a>
+
+    <header class="topbar">
+      <div class="brand">
+        <img class="brand-mark" src="icons/icon-192.png" width="36" height="36" alt="">
+        <div class="brand-text">
+          <h1>Vestige</h1>
+          <p>Urbex Atlas</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button type="button" class="icon-btn" id="btn-about" aria-label="About and safety" title="About and safety">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 11v6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>
+        </button>
+        <button type="button" class="icon-btn" id="btn-settings" aria-label="Settings" title="Settings">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M19.4 13.5a7.7 7.7 0 0 0 .1-1.5 7.7 7.7 0 0 0-.1-1.5l2-1.5-2-3.5-2.4 1a7.4 7.4 0 0 0-2.6-1.5L14 2h-4l-.4 2.5a7.4 7.4 0 0 0-2.6 1.5l-2.4-1-2 3.5 2 1.5a7.7 7.7 0 0 0-.1 1.5 7.7 7.7 0 0 0 .1 1.5l-2 1.5 2 3.5 2.4-1a7.4 7.4 0 0 0 2.6 1.5L10 22h4l.4-2.5a7.4 7.4 0 0 0 2.6-1.5l2.4 1 2-3.5-2-1.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="search-dock">
+      <form id="search-form" class="search-form" autocomplete="off" role="search">
+        <label class="sr-only" for="search-input">Search by city, state, or country</label>
+        <svg class="search-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 16l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <input id="search-input" type="search" enterkeyhint="search" placeholder="City, state, or country" maxlength="120" autocapitalize="words">
+        <button type="button" class="near-btn" id="btn-near" title="Use your current location">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="currentColor"/><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <span>Near me</span>
+        </button>
+      </form>
+      <div class="continent-row" id="continent-row" role="listbox" aria-label="Search by continent"></div>
+    </div>
+
+    <div id="map" role="application" aria-label="Map of urbex locations"></div>
+    <a id="mapbox-logo" class="mapbox-wordmark" href="https://www.mapbox.com/about/maps/" target="_blank" rel="noopener noreferrer" hidden aria-label="Mapbox">
+      <svg viewBox="0 0 90 24" width="90" height="24" aria-hidden="true">
+        <path fill="#ffffff" d="M9.6.9c4.2 0 7.6 3 7.6 7.3 0 5.2-4.4 9.4-8.3 12.5C4.9 17.6.6 13.4.6 8.2.6 3.9 4 .9 8.2.9h1.4z"/>
+        <path fill="#0b0c0e" d="M8.9 3.6l2.1 5.1h-1.4l-.7-1.9-.7 1.9H6.8L8.9 3.6z"/>
+        <text x="20" y="16.5" fill="#ffffff" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700" letter-spacing="0.02em">Mapbox</text>
+      </svg>
+    </a>
+    <div class="map-tools">
+      <button type="button" class="map-tool" id="btn-layers" aria-expanded="false" aria-controls="layer-menu" title="Map layers">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5zm0 12.5l8.5-4.7L21 12l-9 5-9-5 1.5-1.2L12 15.5zm0 4l8.5-4.7L21 16l-9 5-9-5 1.5-1.2L12 19.5z" fill="currentColor"/></svg>
+      </button>
+      <div id="layer-menu" class="layer-menu" hidden role="menu" aria-label="Map style"></div>
+      <button type="button" class="map-tool" id="btn-locate" aria-pressed="false" aria-label="Show my location" title="Show my location">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path d="M12 4.5v-2M12 21.5v-2M4.5 12h-2M21.5 12h-2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+          <circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.7"/>
+          <circle cx="12" cy="12" r="1.35" fill="currentColor"/>
+        </svg>
+      </button>
+    </div>
+
+    <aside id="panel" class="panel" data-snap="peek">
+      <div class="sheet-handle" id="sheet-handle" aria-hidden="true"><span></span></div>
+      <div class="panel-head">
+        <div>
+          <h2 id="results-heading">Forgotten places</h2>
+          <p class="status" id="status">Search a city or pick a continent to begin.</p>
+        </div>
+        <button type="button" class="text-btn" id="btn-cancel" hidden>Cancel</button>
+      </div>
+      <div class="filters" id="filters" hidden>
+        <div class="chips" id="type-chips" role="toolbar" aria-label="Filter by type"></div>
+        <label class="filter-text">
+          <span class="sr-only">Filter the list by name</span>
+          <input type="search" id="text-filter" placeholder="Filter by name…" maxlength="80">
+        </label>
+      </div>
+      <div class="progress" id="progress" hidden>
+        <div class="progress-bar"><span id="progress-fill"></span></div>
+        <p id="progress-label"></p>
+      </div>
+      <ul class="results" id="results" aria-labelledby="results-heading"></ul>
+    </aside>
+
+    <section id="detail" class="detail" hidden aria-labelledby="detail-title">
+      <div class="detail-inner">
+        <button type="button" class="icon-btn detail-close" id="detail-close" aria-label="Close details">&times;</button>
+        <div id="detail-body"></div>
+      </div>
+    </section>
+
+    <button type="button" class="chat-fab" id="chat-fab" aria-expanded="false" aria-controls="chat">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-4 3v-3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+      <span>Urbex Guide</span>
+    </button>
+
+    <section id="chat" class="chat" hidden aria-labelledby="chat-title">
+      <header class="chat-head">
+        <div>
+          <h2 id="chat-title">Urbex Guide</h2>
+          <p>Gear, history, photography, and safety — legal visits only.</p>
+        </div>
+        <button type="button" class="icon-btn" id="chat-close" aria-label="Close chat">&times;</button>
+      </header>
+      <div class="chat-log" id="chat-log" role="log" aria-live="polite"></div>
+      <form class="chat-form" id="chat-form">
+        <label class="sr-only" for="chat-input">Message the guide</label>
+        <textarea id="chat-input" rows="1" placeholder="Ask about gear, history, or staying safe…" maxlength="2000"></textarea>
+        <button type="submit" class="send-btn" id="chat-send" aria-label="Send">Send</button>
+      </form>
+    </section>
+
+    <div id="modal" class="modal" hidden>
+      <div class="modal-backdrop" data-close="modal"></div>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <button type="button" class="icon-btn modal-x" data-close="modal" aria-label="Close">&times;</button>
+        <div id="modal-body"></div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
+
+    <nav id="tabbar" class="tabbar" aria-label="Primary">
+      <button type="button" class="tab" id="tab-search" aria-current="page">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 16l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span>Search</span>
+      </button>
+      <button type="button" class="tab" id="tab-favorites">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 20l-1.45-1.32C6.4 14.36 3.5 11.28 3.5 8.5 3.5 6.42 5.42 5 7.5 5c1.74 0 3.41.81 4.5 2.09C13.09 5.81 14.76 5 16.5 5 18.58 5 20.5 6.42 20.5 8.5c0 2.78-2.9 5.86-7.05 10.18L12 20z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        <span>Favorites</span>
+      </button>
+      <button type="button" class="tab" id="tab-guide">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-4 3v-3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        <span>Guide</span>
+      </button>
+    </nav>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

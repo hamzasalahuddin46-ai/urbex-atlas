@@ -1,0 +1,26 @@
+{
+  "name": "Vestige — Urbex Atlas",
+  "short_name": "Vestige",
+  "description": "Discover abandoned and historic places from open data, anywhere in the world.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0c0e",
+  "theme_color": "#0b0c0e",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
