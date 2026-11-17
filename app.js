@@ -110,7 +110,8 @@
     "bypass locks, evade security, disable alarms, or commit any crime. " +
     "If asked for help doing those things, you refuse clearly and suggest legal alternatives " +
     "such as licensed tours, publicly accessible ruins, museums, and photography from public rights of way. " +
-    "Be concise, warm, and practical. Do not invent exact access instructions for a specific site.";
+    "Be concise, warm, and practical. Do not invent exact access instructions for a specific site. " +
+    "Reply in short plain paragraphs or simple dash lists. Never use markdown tables.";
 
   var state = {
     map: null,
@@ -1577,8 +1578,24 @@
 
   function pushGuide(text) { return pushBubble("guide", text, "guide"); }
 
+  function flattenTables(s) {
+    var lines = String(s).split("\n"), out = [], header = null;
+    for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i].trim();
+      if (/^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/.test(ln)) continue;
+      if (/^\|.*\|$/.test(ln)) {
+        var cells = ln.replace(/^\|/, "").replace(/\|$/, "").split("|").map(function (c) { return c.trim(); });
+        if (!header) { header = cells; continue; }
+        out.push("- " + cells.map(function (c, j) {
+          return header[j] && j > 0 ? header[j] + ": " + c : c;
+        }).filter(Boolean).join(", "));
+      } else { header = null; out.push(lines[i]); }
+    }
+    return out.join("\n");
+  }
+
   function renderLite(s) {
-    return esc(s)
+    return esc(flattenTables(s))
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
       .replace(/^### (.+)$/gm, "<strong>$1</strong>")
       .replace(/\n/g, "<br>");
